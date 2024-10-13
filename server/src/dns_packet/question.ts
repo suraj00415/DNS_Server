@@ -1,35 +1,4 @@
-export enum QueryTYPE {
-    A = 0,
-    NS = 1,
-    MD = 2,
-    MF = 3,
-    CNAME = 4,
-    SOA = 5,
-    MB = 6,
-    MG = 7,
-    MR = 8,
-    NULL = 9,
-    WKS = 10,
-    PTR = 11,
-    HINFO = 12,
-    MINFO = 13,
-    MX = 14,
-    TXT = 15,
-    AAAA = 28,
-}
-
-export enum ClassType {
-    IN = 0,
-    CS = 1,
-    CH = 2,
-    HS = 3,
-}
-
-export interface DNS_Question {
-    QNAME: string,
-    QTYPE: QueryTYPE,
-    ClassCode: ClassType
-}
+import { DNS_Question } from "../utils/types"
 
 export class Question {
     static createQuestion(value: DNS_Question) {
@@ -39,5 +8,24 @@ export class Question {
         typeBuffer.writeUInt16BE(value.QTYPE, 0)
         typeBuffer.writeUInt16BE(value.ClassCode, 2)
         return Buffer.concat([Buffer.from(domains + '\0', 'binary'), typeBuffer])
+    }
+    static getQuestion(msg: Buffer, QDCOUNT: number, offset: number) {
+        let questions: DNS_Question[] = []  
+        for (let i = 0; i < QDCOUNT; i++) {
+            let qname = '';
+            while (msg[offset] !== 0) {
+                const labelLength = msg[offset];
+                offset++;
+                qname += msg.slice(offset, offset + labelLength).toString('ascii') + '.';
+                offset += labelLength;
+            }
+            qname = qname.slice(0, qname.length - 1)
+            offset++;
+            const qtype = msg.readUInt16BE(offset);
+            const qclass = msg.readUInt16BE(offset += 2);
+            let question: DNS_Question = { ClassCode: qclass, QNAME: qname, QTYPE: qtype }
+            questions.push(question)
+        }
+        return questions
     }
 }

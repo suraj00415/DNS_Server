@@ -1,27 +1,5 @@
-export enum ResponseCode {
-    NO_ERROR = 0,
-    Format_ERROR = 1,
-    SERVER_ERROR = 2,
-    NAME_ERROR = 3,
-    NOT_IMPLEMENTED = 4,
-    REFUSED = 5
-}
+import { DNS_Header } from "../utils/types"
 
-export interface DNS_Header {
-    ID: number,
-    QR: number,
-    OPCODE: number,
-    AA: number,
-    TC: number,
-    RD: number,
-    RA: number,
-    Z: number,
-    RCODE: ResponseCode,
-    QDCOUNT: number,
-    ANCOUNT: number,
-    NSCOUNT: number,
-    ARCOUNT: number
-}
 
 export class Header {
     static createHeader(value: DNS_Header) {
@@ -35,5 +13,40 @@ export class Header {
         headerBuffer.writeUInt16BE(value.NSCOUNT, offset += 2)
         headerBuffer.writeUInt16BE(value.ARCOUNT, offset += 2)
         return headerBuffer
+    }
+    static getHeader(msg: Buffer) {
+        let offset = 0;
+        const id = msg.readUInt16BE(offset);
+        const flags = msg.readUInt16BE(offset += 2);
+        const qdcount = msg.readUInt16BE(offset += 2);
+        const ancount = msg.readUInt16BE(offset += 2);
+        const nscount = msg.readUInt16BE(offset += 2);
+        const arcount = msg.readUInt16BE(offset += 2);
+        offset += 2;
+        let FLAGS = flags.toString(2).padStart(16, '0')
+        let qr = Number(FLAGS[0])
+        let opcode = Number(FLAGS.slice(1, 5))
+        let aa = Number(FLAGS[5])
+        let tc = Number(FLAGS[6])
+        let rd = Number(FLAGS[7])
+        let ra = Number(FLAGS[8])
+        let z = Number(FLAGS.slice(9, 12))
+        let rcode = Number(FLAGS.slice(12))
+        let header: DNS_Header = {
+            ID: id,
+            QR: qr,
+            OPCODE: opcode,
+            AA: aa,
+            TC: tc,
+            RD: rd,
+            RA: ra,
+            Z: z,
+            RCODE: rcode,
+            QDCOUNT: qdcount,
+            ANCOUNT: ancount,
+            NSCOUNT: nscount,
+            ARCOUNT: arcount
+        }
+        return header
     }
 }
