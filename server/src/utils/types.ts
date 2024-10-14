@@ -28,5 +28,5 @@ export interface DNS_Answer {
     ClassCode: ClassType,
     TTL: number,
     RDLENGTH: number,
-    RDATA: string ;
+    RDATA: string;
 }

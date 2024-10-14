@@ -24,7 +24,7 @@ export enum QueryTYPE {
     MINFO = 14,
     MX = 15,
     TXT = 16,
-    AAAA = 29,
+    AAAA = 28,
 }
 
 export enum ClassType {
@@ -35,3 +35,4 @@ export enum ClassType {
 }
 
 export const RECURSION_AVALILABLE = 1
+export const CURRENT_DOMAIN='127.0.0.1'

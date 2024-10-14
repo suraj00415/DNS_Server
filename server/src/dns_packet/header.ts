@@ -1,6 +1,5 @@
 import { DNS_Header } from "../utils/types"
 
-
 export class Header {
     static createHeader(value: DNS_Header) {
         const headerBuffer = Buffer.alloc(12)

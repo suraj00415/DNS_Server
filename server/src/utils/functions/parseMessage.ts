@@ -15,7 +15,9 @@ export const parseMessage = (msg: Buffer) => {
             response.push(a?.responseHeader)
             response.push(a?.responseQuestion)
         }
-        response.push(a?.responseAnswer)
+        if (a?.responseAnswer) {
+            response.push(a?.responseAnswer)
+        }
     })
     console.log("REsopnse:", response)
     return response

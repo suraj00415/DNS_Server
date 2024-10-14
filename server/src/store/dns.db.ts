@@ -6,7 +6,10 @@ type DnsRecord = {
 };
 
 const dnsRecords: DnsRecord[] = [
+    { type: "A", name: "example.com", value: "192.0.2.34", ttl: 3600 },
     { type: "A", name: "example.com", value: "192.0.2.1", ttl: 3600 },
+    { type: "A", name: "example.com", value: "168.0.23.10", ttl: 3600 },
+    { type: "A", name: "example.com.uniboxlogin.wifi-soft.com", value: "192.0.2.2", ttl: 3600 },
     { type: "A", name: "api.example.com", value: "192.0.2.2", ttl: 3600 },
     { type: "A", name: "blog.example.com", value: "192.0.2.3", ttl: 3600 },
     { type: "AAAA", name: "example.com", value: "2001:db8::1", ttl: 3600 },
