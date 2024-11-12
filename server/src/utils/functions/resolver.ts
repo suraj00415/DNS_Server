@@ -88,6 +88,35 @@ export const resolver = async (header: DNS_Header, question: DNS_Question, steps
     return { responseAnswer: null, responseHeader, responseQuestion };
 };
 
+const resolveNameServerIPS = async (ns: string): Promise<string[]> => {
+    const header: DNS_Header = {
+        ID: Math.floor(Math.random() * 65535),
+        QR: 0,
+        OPCODE: 0,
+        AA: 0,
+        TC: 0,
+        RD: 1,
+        RA: 0,
+        Z: 0,
+        RCODE: 0,
+        QDCOUNT: 1,
+        ANCOUNT: 0,
+        NSCOUNT: 0,
+        ARCOUNT: 0
+    };
+
+    const question: DNS_Question = {
+        QNAME: ns,
+        QTYPE: QueryTYPE.A, // Type A for IPv4 address resolution
+        ClassCode: ClassType.IN
+    };
+
+    const nameServerIPs: string[] = [];
+
+    return nameServerIPs;
+};
+
+
 const resolveRecursively = async (header: DNS_Header, question: DNS_Question, visited: Set<string>, stepsArray: dnsResponseSteps[] = [], isHttp: boolean = false): Promise<DNS_Answer[] | null> => {
     let currServers = ROOT_SERVERS;
     let sameServer = currServers
@@ -110,6 +139,16 @@ const resolveRecursively = async (header: DNS_Header, question: DNS_Question, vi
                 else if (response.additional && response.additional.length) {
                     currServers = response.additional.map((additional: DNS_Additional) => additional.RDATA);
                     break;
+                }
+                else if (response.authority && response.authority.length) {
+                    const nameServers = response.authority.map((a) => a.RDATA);
+                    const NameServerResolverIP = await resolveRecursively(header, { ...question, QNAME: nameServers[0] }, visited, stepsArray, true)
+                    const nameServerIPsArrays = NameServerResolverIP?.map((a) => a.RDATA)
+                    if (nameServerIPsArrays) {
+                        currServers = nameServerIPsArrays;
+                        break
+                    }
+                    if (currServers.length === 0) continue;
                 }
             } catch (error) {
                 continue
