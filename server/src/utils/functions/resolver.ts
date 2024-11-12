@@ -88,34 +88,6 @@ export const resolver = async (header: DNS_Header, question: DNS_Question, steps
     return { responseAnswer: null, responseHeader, responseQuestion };
 };
 
-const resolveNameServerIPS = async (ns: string): Promise<string[]> => {
-    const header: DNS_Header = {
-        ID: Math.floor(Math.random() * 65535),
-        QR: 0,
-        OPCODE: 0,
-        AA: 0,
-        TC: 0,
-        RD: 1,
-        RA: 0,
-        Z: 0,
-        RCODE: 0,
-        QDCOUNT: 1,
-        ANCOUNT: 0,
-        NSCOUNT: 0,
-        ARCOUNT: 0
-    };
-
-    const question: DNS_Question = {
-        QNAME: ns,
-        QTYPE: QueryTYPE.A, // Type A for IPv4 address resolution
-        ClassCode: ClassType.IN
-    };
-
-    const nameServerIPs: string[] = [];
-
-    return nameServerIPs;
-};
-
 
 const resolveRecursively = async (header: DNS_Header, question: DNS_Question, visited: Set<string>, stepsArray: dnsResponseSteps[] = [], isHttp: boolean = false): Promise<DNS_Answer[] | null> => {
     let currServers = ROOT_SERVERS;
