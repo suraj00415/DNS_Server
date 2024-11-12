@@ -1,4 +1,4 @@
-import { ClassType, QueryTYPE, ResponseCode } from "./enums"
+import { ClassType, QueryTYPE, ResponseCode } from "./enums";
 
 export interface DNS_Header {
     ID: number,
@@ -49,24 +49,30 @@ export interface DNS_Additional {
     RDATA: string
 }
 
-export interface Resolver_Response {
-    responseAnswer: Buffer<ArrayBuffer> | null,
-    responseHeader: Buffer<ArrayBuffer>,
-    responseQuestion: Buffer<ArrayBuffer>,
-}
-
 export interface dnsResponse {
-    header: DNS_Header,
-    question: DNS_Question[],
-    answer: DNS_Answer[] | null,
-    authority: DNS_Authority[] | null,
-    additional: DNS_Additional[] | null
+    data: {
+        header: DNS_Header,
+        question: DNS_Question[],
+        answer: DNS_Answer[] | null,
+        authority: DNS_Authority[] | null,
+        additional: DNS_Additional[] | null
+    }
 }
-export interface dnsResponseSteps {
+export interface dnsResponseMain {
+    data: {
+        header: DNS_Header,
+        question: DNS_Question[],
+        answer: DNS_Answer[] | null,
+        authority: DNS_Authority[] | null,
+        additional: DNS_Additional[] | null,
+        message: string
+    }[]
+}
+export interface simpleDnsResponse {
     header: DNS_Header,
     question: DNS_Question[],
     answer: DNS_Answer[] | null,
     authority: DNS_Authority[] | null,
-    additional: DNS_Additional[] | null,
-    message: string,
+    additional: DNS_Additional[] | ,
+    message:string
 }

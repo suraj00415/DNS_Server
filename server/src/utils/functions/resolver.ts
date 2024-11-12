@@ -1,91 +1,126 @@
+import { serverv4, serverv6 } from "../..";
 import { Answer } from "../../dns_packet/answer";
 import { Header } from "../../dns_packet/header";
 import { Question } from "../../dns_packet/question";
-import dnsRecords from "../../store/dns.db";
-import { ClassType, CURRENT_DOMAIN, QueryTYPE, RECURSION_AVALILABLE, ResponseCode } from "../enums";
-import { DNS_Answer, DNS_Header, DNS_Question } from "../types";
+import dnsRecords, { ROOT_SERVERS } from "../../store/dns.db";
+import { ClassType, QueryTYPE, RECURSION_AVALILABLE, ResponseCode } from "../enums";
+import { DNS_Additional, DNS_Answer, DNS_Header, DNS_Question, dnsResponse, dnsResponseSteps, Resolver_Response } from "../types";
+import { parseMessageHook } from "./parseMessageHook";
 
-export const resolver = (header: DNS_Header, question: DNS_Question) => {
-    if (header.QR === 0) {
-        if (question.QTYPE === QueryTYPE.A && header.TC === 0) {
-            try {
-                let answers = dnsRecords.filter((a) => a.name == question.QNAME && a.type === 'A')
-                console.log("answer-db", answers)
-                let responseAnswerArray: any = []
-                if (answers.length) {
-                    // ip address in the cache
-                    answers.forEach((answer) => {
-                        let responseAnswerObject: DNS_Answer = {
-                            NAME: answer.name,
-                            Type: QueryTYPE.A,
-                            ClassCode: ClassType.IN,
-                            TTL: answer.ttl,
-                            RDLENGTH: 4,
-                            RDATA: answer.value
-                        }
-                        responseAnswerArray.push(Answer.createAnswer(responseAnswerObject))
-                    })
-                }
-                else if (header.RD && RECURSION_AVALILABLE) {
-                    // ip address not there in the cache so recursive calls.......
-                    console.log("Domain IP NOT FOUND AND RA is there")
-                }
-                else {
-                    // non recursive code here
-                    console.log("Domain IP Not Found and RA not there ")
-                    let responseQuestion = Question.createQuestion(question)
-                    let responseHeaderObject: DNS_Header = { ...header, QR: 1, AA: 1, RCODE: ResponseCode.NAME_ERROR }
-                    let responseHeader = Header.createHeader(responseHeaderObject)
-                    return { responseAnswer: null, responseHeader, responseQuestion }
-                }
-                let responseQuestion = Question.createQuestion(question)
-                let responseHeaderObject: DNS_Header = { ...header, QR: 1, AA: 1, RA: 1, ANCOUNT: answers.length }
-                let responseHeader = Header.createHeader(responseHeaderObject)
-                if (!responseAnswerArray) {
-                    return { responseAnswer: null, responseHeader, responseQuestion }
-                }
-                let responseAnswer = Buffer.concat(responseAnswerArray)
-                return { responseAnswer, responseHeader, responseQuestion }
-            } catch (error) {
-                console.log("Error in A record :", error)
-                let responseHeaderObject: DNS_Header = { ...header, QR: 1, AA: 1, RA: 1, RCODE: ResponseCode.SERVER_ERROR }
-                let responseHeader = Header.createHeader(responseHeaderObject)
-                console.log(responseHeader)
-            }
+export const dnsQueryUDP = (serverIP: string, header: DNS_Header, question: DNS_Question, stepsArray: dnsResponse[] = [], isHttp: boolean = false): Promise<dnsResponse> => {
+    return new Promise((resolve, reject) => {
+        const queryMessage = Buffer.concat([
+            Header.createHeader(header),
+            Question.createQuestion(question),
+        ]);
+        const isIPv6 = serverIP.includes(':');
+        const server = isIPv6 ? serverv6 : serverv4;
+        console.log('Message Sending to The server:', serverIP)
+        const timeout = setTimeout(() => {
+            console.log(`Timeout reached for server ${serverIP}. Moving to the next server.`);
+            reject(new Error(`Timeout: No response from server ${serverIP} within 2 seconds`));
+        }, 2000);
 
-        }
-        else if (question.QTYPE === QueryTYPE.PTR) {
-            let responseHeaderObject: DNS_Header = {
-                ...header,
-                QR: 1,
-                ANCOUNT: 1
+        server.send(queryMessage, 0, queryMessage.length, 53, serverIP, (err) => {
+            if (err) {
+                console.log("Error in sending the Query to the Root server:", err);
+                reject(err);
+                return;
             }
-            let responseHeader = Header.createHeader(responseHeaderObject)
-            let responseQuestion = Question.createQuestion(question)
-            let length = 0
-            CURRENT_DOMAIN.split('.').map((a) => {
-                length = length + 1 + a.length
-            })
-            let responseAnswerObject: DNS_Answer = {
-                ClassCode: ClassType.IN,
-                NAME: question.QNAME,
-                TTL: 0,
-                Type: QueryTYPE.PTR,
-                RDATA: CURRENT_DOMAIN,
-                RDLENGTH: length
-            }
-            let responseAnswer = Answer.createAnswer(responseAnswerObject)
-            return { responseAnswer, responseHeader, responseQuestion }
-        }
-        else if (question.QTYPE === QueryTYPE.AAAA && header.TC === 0) {
-            if (header.RD && RECURSION_AVALILABLE) {
-                let a = dnsRecords.find((a) => a.name === question.QNAME && a.type === 'AAAA')
-                // let responseHeaderObject:DNS_Header={
-                //     QR:1,
-
+        });
+        server.on('message', (msg: Buffer, rinfo: { address: string; port: number }) => {
+            if ((rinfo.address === serverIP && rinfo.port === 53) || (isIPv6 && rinfo.port === 53)) {
+                const response: dnsResponse = parseMessageHook(msg);
+                // if (isHttp) {
                 // }
-                // let responseHeader=Header.createHeader()
+                resolve(response);
             }
+        });
+    });
+};
+
+export const resolver = async (header: DNS_Header, question: DNS_Question, stepsArray: dnsResponseSteps[] = [], isHttp: boolean = false): Promise<Resolver_Response> => {
+    if (header.QR === 0) {
+        try {
+            let responseAnswerArray: any = [];
+            const answers = dnsRecords.filter((a) => a.name === question.QNAME && a.type === question.QTYPE);
+            if (answers.length) {
+                answers.forEach((answer) => {
+                    responseAnswerArray.push(Answer.createAnswer({
+                        NAME: answer.name,
+                        Type: question.QTYPE,
+                        ClassCode: ClassType.IN,
+                        TTL: answer.ttl,
+                        RDLENGTH: question.QTYPE === QueryTYPE.AAAA ? 16 : 4,
+                        RDATA: answer.value,
+                    }));
+                });
+            } else if (header.RD && RECURSION_AVALILABLE) {
+                try {
+                    let recursiveAnswer = await resolveRecursively(header, question, new Set(), stepsArray, isHttp);
+                    if (recursiveAnswer && recursiveAnswer.length) {
+                        recursiveAnswer.forEach((recAnswer) => responseAnswerArray.push(Answer.createAnswer(recAnswer)));
+                    } else {
+                        return nonRecursiveResponse(header, question, ResponseCode.NAME_ERROR);
+                    }
+                } catch (error) {
+                    return nonRecursiveResponse(header, question, ResponseCode.SERVER_ERROR);
+                }
+            } else {
+                return nonRecursiveResponse(header, question, ResponseCode.NAME_ERROR);
+            }
+            const responseHeader = Header.createHeader({ ...header, QR: 1, AA: 1, RA: 1, ANCOUNT: responseAnswerArray.length });
+            const responseAnswer = Buffer.concat(responseAnswerArray);
+            const responseQuestion = Question.createQuestion(question);
+
+            return { responseAnswer, responseHeader, responseQuestion };
+
+        } catch (error) {
+            console.log("Error processing DNS query:", error);
+            const responseHeader = Header.createHeader({ ...header, QR: 1, AA: 1, RA: 1, RCODE: ResponseCode.SERVER_ERROR });
+            const responseQuestion = Question.createQuestion(question);
+            return { responseAnswer: null, responseHeader, responseQuestion };
         }
     }
-}
+
+    const responseHeader = Header.createHeader({ ...header, QR: 1, AA: 1, RA: 1, RCODE: ResponseCode.NOT_IMPLEMENTED });
+    const responseQuestion = Question.createQuestion(question);
+    return { responseAnswer: null, responseHeader, responseQuestion };
+};
+
+const resolveRecursively = async (header: DNS_Header, question: DNS_Question, visited: Set<string>, stepsArray: dnsResponseSteps[] = [], isHttp: boolean = false): Promise<DNS_Answer[] | null> => {
+    let currServers = ROOT_SERVERS;
+    let sameServer = currServers
+    let i = 0;
+    while (true) {
+        sameServer = currServers
+        for (const serverIP of currServers) {
+            console.log("Recursions: ", i++)
+            try {
+                const response = await dnsQueryUDP(serverIP, header, question);
+                stepsArray.push({ ...response, message: `Response From ${serverIP}` })
+                if (response.answer && response.answer.length) {
+                    if (response.answer[0].Type === QueryTYPE.CNAME && !visited.has(response.answer[0].RDATA)) {
+                        visited.add(response.answer[0].RDATA);
+                        return resolveRecursively(header, { ...question, QNAME: response.answer[0].RDATA }, visited, stepsArray, isHttp);
+                    } else {
+                        return response.answer;
+                    }
+                }
+                else if (response.additional && response.additional.length) {
+                    currServers = response.additional.map((additional: DNS_Additional) => additional.RDATA);
+                    break;
+                }
+            } catch (error) {
+                continue
+            }
+        }
+        if (currServers === sameServer) return null
+    }
+};
+
+const nonRecursiveResponse = (header: DNS_Header, question: DNS_Question, RCODE: ResponseCode): Resolver_Response => {
+    const responseHeader = Header.createHeader({ ...header, QR: 1, AA: 1, RCODE });
+    const responseQuestion = Question.createQuestion(question);
+    return { responseAnswer: null, responseHeader, responseQuestion };
+};

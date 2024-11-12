@@ -10,7 +10,7 @@ export class Question {
         return Buffer.concat([Buffer.from(domains + '\0', 'binary'), typeBuffer])
     }
     static getQuestion(msg: Buffer, QDCOUNT: number, offset: number) {
-        let questions: DNS_Question[] = []  
+        let questions: DNS_Question[] = []
         for (let i = 0; i < QDCOUNT; i++) {
             let qname = '';
             while (msg[offset] !== 0) {
@@ -26,6 +26,7 @@ export class Question {
             let question: DNS_Question = { ClassCode: qclass, QNAME: qname, QTYPE: qtype }
             questions.push(question)
         }
-        return questions
+        offset += 2
+        return { questions, offset }
     }
 }
